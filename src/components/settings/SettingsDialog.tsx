@@ -17,21 +17,52 @@ import { Settings, Volume2, Trash2 } from 'lucide-react'
 import { useTimerStore } from '@/stores/timerStore'
 import type { AppSettings } from '@/types'
 
+type DurationField = 'focusDuration' | 'shortBreakDuration' | 'longBreakDuration' | 'pomodorosUntilLongBreak'
+
+const durationDefaults: Record<DurationField, string> = {
+    focusDuration: '25',
+    shortBreakDuration: '5',
+    longBreakDuration: '15',
+    pomodorosUntilLongBreak: '4',
+}
+
 export function SettingsDialog() {
     const settings = useTimerStore((s) => s.settings)
     const updateSettings = useTimerStore((s) => s.updateSettings)
     const resetStats = useTimerStore((s) => s.resetStats)
     const [open, setOpen] = useState(false)
     const [draft, setDraft] = useState<AppSettings>(settings)
+    const [draftInputs, setDraftInputs] = useState<Record<DurationField, string>>({
+        focusDuration: String(settings.focusDuration),
+        shortBreakDuration: String(settings.shortBreakDuration),
+        longBreakDuration: String(settings.longBreakDuration),
+        pomodorosUntilLongBreak: String(settings.pomodorosUntilLongBreak),
+    })
 
     const handleOpen = (isOpen: boolean) => {
-        if (isOpen) setDraft({ ...settings })
+        if (isOpen) {
+            setDraft({ ...settings })
+            setDraftInputs({
+                focusDuration: String(settings.focusDuration),
+                shortBreakDuration: String(settings.shortBreakDuration),
+                longBreakDuration: String(settings.longBreakDuration),
+                pomodorosUntilLongBreak: String(settings.pomodorosUntilLongBreak),
+            })
+        }
         setOpen(isOpen)
     }
 
     const update = (newSettings: AppSettings) => {
         setDraft(newSettings)
         updateSettings(newSettings)
+    }
+
+    const handleDurationChange = (field: DurationField, rawValue: string) => {
+        setDraftInputs((prev) => ({ ...prev, [field]: rawValue }))
+        const num = Number(rawValue)
+        if (rawValue !== '' && !isNaN(num) && num >= 1) {
+            update({ ...draft, [field]: num })
+        }
     }
 
     const handleClose = () => {
@@ -66,12 +97,15 @@ export function SettingsDialog() {
                                     type="number"
                                     min={1}
                                     max={120}
-                                    value={draft.focusDuration}
+                                    value={draftInputs.focusDuration}
                                     onChange={(e) =>
-                                        update({ ...draft, focusDuration: +e.target.value || 1 })
+                                        handleDurationChange('focusDuration', e.target.value)
                                     }
                                     className="bg-zinc-800 border-zinc-700 text-white h-9 text-center"
                                 />
+                                {draftInputs.focusDuration === '' && (
+                                    <p className="text-[11px] text-red-500 mt-1">Required</p>
+                                )}
                             </div>
                             <div>
                                 <Label className="text-xs text-zinc-500">Short Break</Label>
@@ -79,15 +113,15 @@ export function SettingsDialog() {
                                     type="number"
                                     min={1}
                                     max={60}
-                                    value={draft.shortBreakDuration}
+                                    value={draftInputs.shortBreakDuration}
                                     onChange={(e) =>
-                                        update({
-                                            ...draft,
-                                            shortBreakDuration: +e.target.value || 1,
-                                        })
+                                        handleDurationChange('shortBreakDuration', e.target.value)
                                     }
                                     className="bg-zinc-800 border-zinc-700 text-white h-9 text-center"
                                 />
+                                {draftInputs.shortBreakDuration === '' && (
+                                    <p className="text-[11px] text-red-500 mt-1">Required</p>
+                                )}
                             </div>
                             <div>
                                 <Label className="text-xs text-zinc-500">Long Break</Label>
@@ -95,15 +129,15 @@ export function SettingsDialog() {
                                     type="number"
                                     min={1}
                                     max={60}
-                                    value={draft.longBreakDuration}
+                                    value={draftInputs.longBreakDuration}
                                     onChange={(e) =>
-                                        update({
-                                            ...draft,
-                                            longBreakDuration: +e.target.value || 1,
-                                        })
+                                        handleDurationChange('longBreakDuration', e.target.value)
                                     }
                                     className="bg-zinc-800 border-zinc-700 text-white h-9 text-center"
                                 />
+                                {draftInputs.longBreakDuration === '' && (
+                                    <p className="text-[11px] text-red-500 mt-1">Required</p>
+                                )}
                             </div>
                         </div>
                         <div>
@@ -114,15 +148,15 @@ export function SettingsDialog() {
                                 type="number"
                                 min={1}
                                 max={12}
-                                value={draft.pomodorosUntilLongBreak}
+                                value={draftInputs.pomodorosUntilLongBreak}
                                 onChange={(e) =>
-                                    update({
-                                        ...draft,
-                                        pomodorosUntilLongBreak: +e.target.value || 1,
-                                    })
+                                    handleDurationChange('pomodorosUntilLongBreak', e.target.value)
                                 }
                                 className="bg-zinc-800 border-zinc-700 text-white h-9 w-20 text-center"
                             />
+                            {draftInputs.pomodorosUntilLongBreak === '' && (
+                                <p className="text-[11px] text-red-500 mt-1">Required</p>
+                            )}
                         </div>
                     </section>
 
