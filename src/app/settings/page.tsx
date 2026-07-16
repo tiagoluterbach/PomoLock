@@ -23,6 +23,21 @@ import {
 import Link from 'next/link'
 import type { AppSettings } from '@/types'
 
+function getLocalISOString(date: Date) {
+    const tzOffset = -date.getTimezoneOffset()
+    const diff = tzOffset >= 0 ? '+' : '-'
+    const pad = (n: number) => `${Math.floor(Math.abs(n))}`.padStart(2, '0')
+    
+    return date.getFullYear() +
+        '-' + pad(date.getMonth() + 1) +
+        '-' + pad(date.getDate()) +
+        'T' + pad(date.getHours()) +
+        ':' + pad(date.getMinutes()) +
+        ':' + pad(date.getSeconds()) +
+        diff + pad(tzOffset / 60) +
+        ':' + pad(tzOffset % 60)
+}
+
 export default function SettingsPage() {
     const { user, loading: userLoading } = useUser()
     const settings = useTimerStore((s) => s.settings)
@@ -44,7 +59,9 @@ export default function SettingsPage() {
         const months = new Set<string>()
         for (const s of allSessions) {
             if (s.startedAt) {
-                months.add(s.startedAt.substring(0, 7))
+                const localDate = new Date(s.startedAt)
+                const monthStr = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}`
+                months.add(monthStr)
             }
         }
         return Array.from(months).sort().reverse()
@@ -79,12 +96,23 @@ export default function SettingsPage() {
     const handleExportData = () => {
         const sessionsToExport = exportPeriod === 'all' 
             ? allSessions 
-            : allSessions.filter(s => s.startedAt?.startsWith(exportPeriod))
+            : allSessions.filter(s => {
+                if (!s.startedAt) return false
+                const localDate = new Date(s.startedAt)
+                const monthStr = `${localDate.getFullYear()}-${String(localDate.getMonth() + 1).padStart(2, '0')}`
+                return monthStr === exportPeriod
+            })
+
+        const localizedSessions = sessionsToExport.map(s => ({
+            ...s,
+            startedAt: s.startedAt ? getLocalISOString(new Date(s.startedAt)) : s.startedAt,
+            createdAt: s.createdAt ? getLocalISOString(new Date(s.createdAt)) : s.createdAt,
+        }))
 
         const data = {
-            exportedAt: new Date().toISOString(),
+            exportedAt: getLocalISOString(new Date()),
             settings: draft,
-            sessions: sessionsToExport,
+            sessions: localizedSessions,
         }
 
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
