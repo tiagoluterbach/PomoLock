@@ -92,13 +92,7 @@ export function TimerRunner() {
                         enterHyperfocus()
                         workerRef.current?.postMessage({ type: 'hyperfocus' })
                     } else {
-                        if (mode === 'focus') {
-                            const { completedPomodoros, lastPomodoroDate } = state
-                            const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
-                            const dailyCount = lastPomodoroDate !== today ? 0 : completedPomodoros
-                            useTimerStore.setState({ completedPomodoros: dailyCount + 1, lastPomodoroDate: today })
-                        }
-                        reset()
+                        state.complete()
                     }
                 }
             }
@@ -274,13 +268,7 @@ export function TimerRunner() {
                 enterHyperfocus()
                 workerRef.current?.postMessage({ type: 'hyperfocus' })
             } else {
-                if (mode === 'focus') {
-                    const { completedPomodoros, lastPomodoroDate } = state
-                    const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`
-                    const dailyCount = lastPomodoroDate !== today ? 0 : completedPomodoros
-                    useTimerStore.setState({ completedPomodoros: dailyCount + 1, lastPomodoroDate: today })
-                }
-                reset()
+                state.complete()
             }
         }
     }, [secondsRemaining, status])

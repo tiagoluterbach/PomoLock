@@ -45,6 +45,7 @@ interface TimerState {
     pause: () => void
     reset: () => void
     skip: () => void
+    complete: () => void
     tick: () => void
     tickHyperfocus: () => void
     enterHyperfocus: () => void
@@ -132,7 +133,32 @@ export const useTimerStore = create<TimerState>()(
 
             // Actions
             setMode: (mode) => {
-                const { settings } = get()
+                const { settings, mode: currentMode, status, secondsRemaining, hyperfocusSeconds, sessionStartedAt } = get()
+
+                // Save partial session if switching away from an active focus mode
+                if (currentMode === 'focus' && (status === 'running' || status === 'paused' || status === 'hyperfocus') && sessionStartedAt) {
+                    const totalSeconds = getDurationForMode('focus', settings)
+                    const elapsedSeconds = totalSeconds - secondsRemaining + hyperfocusSeconds
+                    const elapsedMinutes = Math.floor(elapsedSeconds / 60)
+
+                    // Only save if at least 1 minute was studied
+                    if (elapsedMinutes >= 1) {
+                        const now = new Date().toISOString()
+                        const session: FocusSession = {
+                            id: generateId(),
+                            userId: '',
+                            startedAt: sessionStartedAt,
+                            durationMinutes: elapsedMinutes,
+                            actualDurationSeconds: elapsedSeconds,
+                            hyperfocusSeconds: hyperfocusSeconds,
+                            completed: false,
+                            createdAt: now,
+                        }
+                        const { pendingSessions } = get()
+                        set({ pendingSessions: [...pendingSessions, session] })
+                    }
+                }
+
                 set({
                     mode,
                     status: 'idle',
@@ -238,6 +264,47 @@ export const useTimerStore = create<TimerState>()(
                     completedPomodoros: newPomodoros,
                     lastPomodoroDate: getLocalDateString(),
                     sessionStartedAt: null,
+                    pausedFromHyperfocus: false,
+                })
+            },
+
+            complete: () => {
+                const { mode, completedPomodoros, settings, sessionStartedAt, lastPomodoroDate, hyperfocusSeconds, secondsRemaining } = get()
+                const dailyPomodoros = getDailyPomodoros(completedPomodoros, lastPomodoroDate)
+                const nextMode = getNextMode(mode, dailyPomodoros, settings)
+                const newPomodoros = mode === 'focus' ? dailyPomodoros + 1 : dailyPomodoros
+
+                // Save completed session if focus mode
+                if (mode === 'focus' && sessionStartedAt) {
+                    const now = new Date().toISOString()
+                    const totalDuration = settings.focusDuration * 60
+                    const elapsedSeconds = totalDuration - secondsRemaining + hyperfocusSeconds
+                    const session: FocusSession = {
+                        id: generateId(),
+                        userId: '',
+                        startedAt: sessionStartedAt,
+                        durationMinutes: Math.floor(elapsedSeconds / 60),
+                        actualDurationSeconds: elapsedSeconds,
+                        hyperfocusSeconds: hyperfocusSeconds,
+                        completed: true,
+                        createdAt: now,
+                    }
+                    const { pendingSessions } = get()
+                    set({ pendingSessions: [...pendingSessions, session] })
+                }
+
+                // Determine if auto-start is enabled for the next mode
+                const shouldAutoStart = (mode === 'focus' && settings.autoStartBreaks) ||
+                    (mode !== 'focus' && settings.autoStartPomodoros)
+
+                set({
+                    mode: nextMode,
+                    status: shouldAutoStart ? 'running' : 'idle',
+                    secondsRemaining: getDurationForMode(nextMode, settings),
+                    hyperfocusSeconds: 0,
+                    completedPomodoros: newPomodoros,
+                    lastPomodoroDate: getLocalDateString(),
+                    sessionStartedAt: shouldAutoStart ? new Date().toISOString() : null,
                     pausedFromHyperfocus: false,
                 })
             },

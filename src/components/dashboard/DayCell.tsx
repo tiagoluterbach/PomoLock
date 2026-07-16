@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { getHeatmapIntensity } from '@/types'
 
 interface DayCellProps {
     day: number | null
@@ -16,21 +17,13 @@ function formatHoursMinutes(totalMinutes: number): string {
     return `${h}:${String(m).padStart(2, '0')}`
 }
 
-function getIntensity(totalMinutes: number): number {
-    const hours = totalMinutes / 60
-    if (hours >= 10) return 4
-    if (hours >= 6) return 3
-    if (hours >= 2) return 2
-    if (hours > 0) return 1
-    return 0
-}
 
 export function DayCell({ day, totalMinutes, isToday, intensityColors }: DayCellProps) {
     if (day === null) {
         return <div className="h-[58px]" />
     }
 
-    const intensity = getIntensity(totalMinutes)
+    const intensity = getHeatmapIntensity(totalMinutes)
     const timeDisplay = formatHoursMinutes(totalMinutes)
     const bgColor = intensity === 0 ? 'rgba(255,255,255,0.06)' : intensityColors[intensity]
 

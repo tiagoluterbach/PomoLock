@@ -15,6 +15,7 @@ describe('Timer Store', () => {
             hyperfocusEnabled: false,
             pausedFromHyperfocus: false,
             settings: DEFAULT_SETTINGS,
+            pendingSessions: [],
         })
     })
 
@@ -224,6 +225,121 @@ describe('Timer Store', () => {
             expect(useTimerStore.getState().hyperfocusEnabled).toBe(true)
             useTimerStore.getState().toggleHyperfocus()
             expect(useTimerStore.getState().hyperfocusEnabled).toBe(false)
+        })
+    })
+
+    describe('setMode session saving', () => {
+        it('should save partial session when switching from active focus to break', () => {
+            useTimerStore.getState().start()
+            // Simulate 120 seconds (2 minutes) of study
+            for (let i = 0; i < 120; i++) {
+                useTimerStore.getState().tick()
+            }
+            useTimerStore.getState().setMode('shortBreak')
+
+            const state = useTimerStore.getState()
+            expect(state.mode).toBe('shortBreak')
+            expect(state.status).toBe('idle')
+            expect(state.pendingSessions).toHaveLength(1)
+            expect(state.pendingSessions[0].completed).toBe(false)
+            expect(state.pendingSessions[0].durationMinutes).toBe(2)
+            expect(state.pendingSessions[0].actualDurationSeconds).toBe(120)
+        })
+
+        it('should NOT save session if less than 1 minute elapsed', () => {
+            useTimerStore.getState().start()
+            // Only 30 seconds
+            for (let i = 0; i < 30; i++) {
+                useTimerStore.getState().tick()
+            }
+            useTimerStore.getState().setMode('shortBreak')
+
+            const state = useTimerStore.getState()
+            expect(state.pendingSessions).toHaveLength(0)
+        })
+
+        it('should NOT save session when switching from break mode', () => {
+            useTimerStore.getState().setMode('shortBreak')
+            useTimerStore.getState().start()
+            for (let i = 0; i < 120; i++) {
+                useTimerStore.getState().tick()
+            }
+            useTimerStore.getState().setMode('focus')
+
+            const state = useTimerStore.getState()
+            expect(state.pendingSessions).toHaveLength(0)
+        })
+
+        it('should NOT save session when timer is idle', () => {
+            useTimerStore.getState().setMode('shortBreak')
+
+            const state = useTimerStore.getState()
+            expect(state.pendingSessions).toHaveLength(0)
+        })
+    })
+
+    describe('complete / auto-start', () => {
+        it('should transition to next mode and save session on complete', () => {
+            useTimerStore.getState().start()
+            // Simulate full focus timer (set secondsRemaining to 0)
+            useTimerStore.setState({ secondsRemaining: 0 })
+            useTimerStore.getState().complete()
+
+            const state = useTimerStore.getState()
+            expect(state.mode).toBe('shortBreak')
+            expect(state.status).toBe('idle')
+            expect(state.completedPomodoros).toBe(1)
+            expect(state.pendingSessions).toHaveLength(1)
+            expect(state.pendingSessions[0].completed).toBe(true)
+        })
+
+        it('should auto-start break when autoStartBreaks is enabled', () => {
+            useTimerStore.getState().updateSettings({ autoStartBreaks: true })
+            useTimerStore.getState().start()
+            useTimerStore.setState({ secondsRemaining: 0 })
+            useTimerStore.getState().complete()
+
+            const state = useTimerStore.getState()
+            expect(state.mode).toBe('shortBreak')
+            expect(state.status).toBe('running')
+            expect(state.sessionStartedAt).not.toBeNull()
+        })
+
+        it('should NOT auto-start break when autoStartBreaks is disabled', () => {
+            useTimerStore.getState().updateSettings({ autoStartBreaks: false })
+            useTimerStore.getState().start()
+            useTimerStore.setState({ secondsRemaining: 0 })
+            useTimerStore.getState().complete()
+
+            const state = useTimerStore.getState()
+            expect(state.mode).toBe('shortBreak')
+            expect(state.status).toBe('idle')
+            expect(state.sessionStartedAt).toBeNull()
+        })
+
+        it('should auto-start pomodoro after break when autoStartPomodoros is enabled', () => {
+            useTimerStore.getState().updateSettings({ autoStartPomodoros: true })
+            // Go to short break first
+            useTimerStore.getState().setMode('shortBreak')
+            useTimerStore.getState().start()
+            useTimerStore.setState({ secondsRemaining: 0 })
+            useTimerStore.getState().complete()
+
+            const state = useTimerStore.getState()
+            expect(state.mode).toBe('focus')
+            expect(state.status).toBe('running')
+            expect(state.sessionStartedAt).not.toBeNull()
+        })
+
+        it('should NOT save session when completing a break', () => {
+            useTimerStore.getState().setMode('shortBreak')
+            useTimerStore.getState().start()
+            useTimerStore.setState({ secondsRemaining: 0 })
+            useTimerStore.getState().complete()
+
+            const state = useTimerStore.getState()
+            expect(state.mode).toBe('focus')
+            expect(state.pendingSessions).toHaveLength(0)
         })
     })
 })

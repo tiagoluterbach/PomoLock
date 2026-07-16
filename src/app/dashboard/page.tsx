@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { HeatmapCalendar } from '@/components/dashboard/HeatmapCalendar'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Flame } from 'lucide-react'
 import { useTimerStore } from '@/stores/timerStore'
 import Link from 'next/link'
 import type { DayStats, FocusSession } from '@/types'
@@ -20,6 +20,34 @@ function buildStatsFromSessions(sessions: FocusSession[]): DayStats[] {
     }
 
     return Array.from(dayMap.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+function calculateStreak(sessions: DayStats[]): number {
+    if (sessions.length === 0) return 0
+
+    const sessionDates = new Set(sessions.filter(s => s.totalMinutes > 0).map(s => s.date))
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+    let streak = 0
+    let checkDate = new Date(now)
+
+    // If today has no sessions, start from yesterday
+    if (!sessionDates.has(today)) {
+        checkDate.setDate(checkDate.getDate() - 1)
+    }
+
+    while (true) {
+        const dateStr = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`
+        if (sessionDates.has(dateStr)) {
+            streak++
+            checkDate.setDate(checkDate.getDate() - 1)
+        } else {
+            break
+        }
+    }
+
+    return streak
 }
 
 export default function DashboardPage() {
@@ -45,6 +73,7 @@ export default function DashboardPage() {
     }, [cloudSessions, pendingSessions])
 
     const sessions = buildStatsFromSessions(allSessions)
+    const streak = calculateStreak(sessions)
 
     return (
         <div className="min-h-screen bg-[#1A1B24] pt-16 px-4 pb-8">
@@ -60,6 +89,13 @@ export default function DashboardPage() {
                         <h1 className="text-2xl font-bold text-white">Statistics</h1>
                     </div>
                 </div>
+
+                {streak > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-zinc-500">
+                        <Flame className="h-4 w-4 text-orange-400/70" />
+                        <span>{streak} day{streak !== 1 ? 's' : ''} streak</span>
+                    </div>
+                )}
 
                 <div className="bg-zinc-800/30 rounded-xl p-5 border border-zinc-700/30 transform scale-110 origin-top">
                     <HeatmapCalendar sessions={sessions} accentColor={dashboardAccent} />

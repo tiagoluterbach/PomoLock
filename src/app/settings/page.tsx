@@ -18,6 +18,7 @@ import {
     LogOut,
     Cloud,
     CloudOff,
+    Download,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { AppSettings } from '@/types'
@@ -28,6 +29,8 @@ export default function SettingsPage() {
     const updateSettings = useTimerStore((s) => s.updateSettings)
     const resetStats = useTimerStore((s) => s.resetStats)
     const [draft, setDraft] = useState<AppSettings>(settings)
+    const pendingSessions = useTimerStore((s) => s.pendingSessions)
+    const cloudSessions = useTimerStore((s) => s.cloudSessions)
 
     // Sync draft when store settings change externally
     useEffect(() => {
@@ -53,6 +56,28 @@ export default function SettingsPage() {
         const supabase = createClient()
         await supabase.auth.signOut()
         window.location.href = '/settings'
+    }
+
+    const handleExportData = () => {
+        // Merge and deduplicate sessions
+        const sessionMap = new Map()
+        for (const s of cloudSessions) sessionMap.set(s.id, s)
+        for (const s of pendingSessions) if (!sessionMap.has(s.id)) sessionMap.set(s.id, s)
+        const allSessions = Array.from(sessionMap.values())
+
+        const data = {
+            exportedAt: new Date().toISOString(),
+            settings: draft,
+            sessions: allSessions,
+        }
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `pomolock-export-${new Date().toISOString().slice(0, 10)}.json`
+        a.click()
+        URL.revokeObjectURL(url)
     }
 
     return (
@@ -343,6 +368,22 @@ export default function SettingsPage() {
                             onCheckedChange={(v) => update({ ...draft, showTimerInTitle: v })}
                         />
                     </div>
+                </section>
+
+                {/* ===== Data Section ===== */}
+                <section className="space-y-4">
+                    <h2 className="text-base font-semibold text-white">Data</h2>
+                    <div className="border-t border-zinc-800" />
+
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleExportData}
+                        className="text-zinc-400 hover:text-white hover:bg-zinc-800/60 gap-2"
+                    >
+                        <Download className="h-4 w-4" />
+                        Export Data (JSON)
+                    </Button>
                 </section>
 
                 {/* ===== Appearance Section ===== */}
