@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useUser } from '@/hooks/useUser'
 import { createClient } from '@/lib/supabase/client'
 import { deleteCloudSessions } from '@/lib/syncController'
@@ -31,6 +31,24 @@ export default function SettingsPage() {
     const [draft, setDraft] = useState<AppSettings>(settings)
     const pendingSessions = useTimerStore((s) => s.pendingSessions)
     const cloudSessions = useTimerStore((s) => s.cloudSessions)
+    const [exportPeriod, setExportPeriod] = useState<string>('all')
+
+    const allSessions = useMemo(() => {
+        const sessionMap = new Map()
+        for (const s of cloudSessions) sessionMap.set(s.id, s)
+        for (const s of pendingSessions) if (!sessionMap.has(s.id)) sessionMap.set(s.id, s)
+        return Array.from(sessionMap.values())
+    }, [cloudSessions, pendingSessions])
+
+    const availableMonths = useMemo(() => {
+        const months = new Set<string>()
+        for (const s of allSessions) {
+            if (s.startedAt) {
+                months.add(s.startedAt.substring(0, 7))
+            }
+        }
+        return Array.from(months).sort().reverse()
+    }, [allSessions])
 
     // Sync draft when store settings change externally
     useEffect(() => {
@@ -59,23 +77,21 @@ export default function SettingsPage() {
     }
 
     const handleExportData = () => {
-        // Merge and deduplicate sessions
-        const sessionMap = new Map()
-        for (const s of cloudSessions) sessionMap.set(s.id, s)
-        for (const s of pendingSessions) if (!sessionMap.has(s.id)) sessionMap.set(s.id, s)
-        const allSessions = Array.from(sessionMap.values())
+        const sessionsToExport = exportPeriod === 'all' 
+            ? allSessions 
+            : allSessions.filter(s => s.startedAt?.startsWith(exportPeriod))
 
         const data = {
             exportedAt: new Date().toISOString(),
             settings: draft,
-            sessions: allSessions,
+            sessions: sessionsToExport,
         }
 
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `pomolock-export-${new Date().toISOString().slice(0, 10)}.json`
+        a.download = `pomolock-export-${exportPeriod === 'all' ? 'all' : exportPeriod}-${new Date().toISOString().slice(0, 10)}.json`
         a.click()
         URL.revokeObjectURL(url)
     }
@@ -375,15 +391,35 @@ export default function SettingsPage() {
                     <h2 className="text-base font-semibold text-white">Data</h2>
                     <div className="border-t border-zinc-800" />
 
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleExportData}
-                        className="text-zinc-400 hover:text-white hover:bg-zinc-800/60 gap-2"
-                    >
-                        <Download className="h-4 w-4" />
-                        Export Data (JSON)
-                    </Button>
+                    <div className="flex items-center gap-4">
+                        <select
+                            value={exportPeriod}
+                            onChange={(e) => setExportPeriod(e.target.value)}
+                            className="bg-zinc-800 border-zinc-700 text-sm text-zinc-300 rounded-md h-9 px-3 outline-none focus:ring-1 focus:ring-zinc-600"
+                        >
+                            <option value="all">All time</option>
+                            {availableMonths.map((month) => {
+                                const [year, m] = month.split('-')
+                                const date = new Date(parseInt(year), parseInt(m) - 1)
+                                const label = date.toLocaleDateString(draft.locale === 'pt-BR' ? 'pt-BR' : 'en-US', { month: 'long', year: 'numeric' })
+                                return (
+                                    <option key={month} value={month}>
+                                        {label.charAt(0).toUpperCase() + label.slice(1)}
+                                    </option>
+                                )
+                            })}
+                        </select>
+
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleExportData}
+                            className="text-zinc-400 hover:text-white hover:bg-zinc-800/60 gap-2"
+                        >
+                            <Download className="h-4 w-4" />
+                            Export (JSON)
+                        </Button>
+                    </div>
                 </section>
 
                 {/* ===== Appearance Section ===== */}
